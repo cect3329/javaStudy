@@ -376,7 +376,7 @@ public String ajax3(String name,String pwd){
 
 测试一下效果，动态请求响应，局部刷新，就是如此！
 
-![img](https://mmbiz.qpic.cn/mmbiz_png/uJDAUKrGC7KZibKx8mbpgp9uicB6eJRNyNtU7ek8sJ1kpbFia5e5IoMRtGFwBiaylw7iakYBws0icEAqyH22l6Y7FMzQ/640?wx_fmt=png&tp=webp&wxfrom=5&wx_lazy=1&wx_co=1)
+![img](ajax.assets/640)
 
 
 
