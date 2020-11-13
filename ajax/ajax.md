@@ -1,3 +1,7 @@
+[toc]
+
+
+
 # 1.简介
 
 - **AJAX = Asynchronous JavaScript and XML（异步的 JavaScript 和 XML）。**(synchronous--->多线程里面的同步)

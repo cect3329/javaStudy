@@ -1,4 +1,8 @@
-# 0 .准备工作
+[toc]
+
+
+
+# 0.准备工作
 
 1. maven 中 导入依赖 lombok
 2. IDEA 中 Project 和 Modules 中的 Language level 为 8版本
@@ -308,7 +312,7 @@ class Data1{
 
 ## 6.1 CopyOnWriteArrayList
 
-- 并发修改 不安全的集合类会产生异常 `java.util.ConcurrentModificationException`
+- 并发修改 不安全的集合类会产生异常 java.util.ConcurrentModificationException
 
 ```java
 package com.zdp;
@@ -614,6 +618,360 @@ public class TestSemaphore {
 - 运行结果图：
 
 ![image-20201112222715628](多线程进阶JUC.assets/image-20201112222715628.png)
+
+
+
+# 9. ReadWriteLock (读写锁)
+
+![image-20201113113751733](多线程进阶JUC.assets/image-20201113113751733.png)
+
+> A `ReadWriteLock` maintains a pair of associated [`locks`](Lock.html), one for read-only operations and one for writing. The [read lock](#readLock()) may be held simultaneously by multiple reader threads, so long as there are no writers. The [write lock](#writeLock()) is exclusive.
+>
+> 大概的意思就是：ReadWriteLock 中有一对 关联锁（读锁和写锁），一个进行只读操作，一个进行写操作。读锁 可以被多个读线程同时占有，只要没有写线程。（读锁和写锁不可同时拥有） 写锁是独占的
+
+![image-20201113114902849](多线程进阶JUC.assets/image-20201113114902849.png)
+
+![image-20201113114938461](多线程进阶JUC.assets/image-20201113114938461.png)
+
+- `ReadWriteLock` 
+  - 读-读 可以共存
+  - 读-写 不可共存
+  - 写-写 不可共存
+- 独占锁（写锁） 一次只能被一个线程占有
+- 共享锁（读锁） 多个线程可以同时占有
+
+```java
+package com.zdp;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+public class TestReadWriteLock {
+    public static void main(String[] args) {
+        MyCache mycache = new MyCache();
+
+        //写线程
+        for (int i = 1; i < 6; i++) {
+            final int temp = i;
+            new Thread(()->{
+                mycache.put(String.valueOf(temp),String.valueOf(temp));
+            },String.valueOf(i)).start();
+        }
+
+        //读线程
+        for (int i = 1; i < 6; i++) {
+            final int temp = i;
+            new Thread(()->{
+                mycache.get(String.valueOf(temp));
+            },String.valueOf(i)).start();
+        }
+
+    }
+}
+
+/*
+* 自定义缓存
+* */
+class MyCache{
+    private volatile Map<String,Object>map = new HashMap<>();
+    //读写锁，更加细粒度的控制
+    //写锁==>写操作只允许一个线程操作
+    //读锁==>读操作可以允许多个线程操作
+    private ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+
+    //存操作，写入的时候，同时只能有一个线程操作
+    //写与读不可以同时操作
+    public void put(String key,String Object){
+        //写锁加锁
+        readWriteLock.writeLock().lock();
+        try{
+            System.out.println(Thread.currentThread().getName()+"写入"+key);
+            map.put(key,Object);
+            TimeUnit.SECONDS.sleep(1);
+            System.out.println(Thread.currentThread().getName()+"写入"+key+"完毕");
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            readWriteLock.writeLock().unlock();
+        }
+    }
+
+    //读操作，读的时候可以同时多个线程读取
+    public void get(String key){
+        readWriteLock.readLock().lock();
+        try{
+            System.out.println(Thread.currentThread().getName()+"读取"+key);
+            map.get(key);
+            TimeUnit.SECONDS.sleep(1);
+            System.out.println(Thread.currentThread().getName()+"读取"+key+"完毕");
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally{
+            readWriteLock.readLock().unlock();
+        }
+    }
+}
+```
+
+- 运行结果：
+
+![image-20201113114310078](多线程进阶JUC.assets/image-20201113114310078.png)
+
+
+
+# 10 阻塞队列
+
+![image-20201113120230642](多线程进阶JUC.assets/image-20201113120230642.png)
+
+![image-20201113120509317](多线程进阶JUC.assets/image-20201113120509317.png)
+
+- 写入：如果队列满了，就必须阻塞等待读取
+- 读取：如果队列是空，必须阻塞等待生产
+- `BlockingQueue` 为接口
+- 什么时候使用 阻塞队列： 线程池，多线程等（典型场景：生产者消费者问题 )
+
+## 10.1 阻塞队列使用方法
+
+- 构造方法 ===>要传入队列大小的参数
+
+![image-20201113123915553](多线程进阶JUC.assets/image-20201113123915553.png)
+
+四组API
+
+这些操作都好像有加锁，看**源码**
+
+- 抛出异常  ===>添加时，队列已满，抛出异常  删除时，队列已空，抛出异常   获取队首时，队列为空，抛出异常
+- 不会抛出异常 ===>offer()方法返回true/false, poll()方法返回被删除的值，如果队列为空，返回null, peek方法，队列为空，返回null
+- 阻塞等待
+
+![image-20201113124757745](多线程进阶JUC.assets/image-20201113124757745.png)
+
+![image-20201113124823948](多线程进阶JUC.assets/image-20201113124823948.png)
+
+- 超时等待
+
+![image-20201113125031080](多线程进阶JUC.assets/image-20201113125031080.png)
+
+![image-20201113125054904](多线程进阶JUC.assets/image-20201113125054904.png)
+
+| 方式         | 抛出异常  | 有返回值，不抛出异常 | 阻塞等待 | 超时等待                  |
+| ------------ | --------- | -------------------- | -------- | ------------------------- |
+| 添加         | add(e)    | offer(e)             | put(e)   | offer(e,timeout,TimeUnit) |
+| 删除         | remove()  | poll()               | take()   | poll(timeout,TimeUnit)    |
+| 获得队首元素 | element() | peek()               |          |                           |
+
+## 10.2  同步队列	SynchronizedQueue
+
+- 容量为1，队列中放入一个元素，必须被取出来后，才可以再往里面放一个元素；否则会产生阻塞
+- `put` `take`操作
+
+```java
+package com.zdp;
+
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.TimeUnit;
+
+public class TestSynchronizedQueue {
+    public static void main(String[] args) throws InterruptedException {
+        SynchronousQueue synchronousQueue = new SynchronousQueue();
+        //一个线程放
+        new Thread(()->{
+            try {
+                synchronousQueue.put(1);
+                System.out.println(Thread.currentThread().getName()+"放入了1");
+                synchronousQueue.put(2);
+                System.out.println(Thread.currentThread().getName()+"放入了2");
+                synchronousQueue.put(3);
+                System.out.println(Thread.currentThread().getName()+"放入了3");
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        },"放置线程").start();
+
+        new Thread(()->{
+            try {
+                TimeUnit.SECONDS.sleep(1);
+                System.out.println(Thread.currentThread().getName()+"===>"+synchronousQueue.take());
+                TimeUnit.SECONDS.sleep(1);
+                System.out.println(Thread.currentThread().getName()+"===>"+synchronousQueue.take());
+                TimeUnit.SECONDS.sleep(1);
+                System.out.println(Thread.currentThread().getName()+"===>"+synchronousQueue.take());
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        },"读取线程").start();
+        TimeUnit.SECONDS.sleep(6);
+    }
+}
+
+```
+
+
+
+# 11 线程池
+
+**池化技术**
+
+- 程序运行===>占用系统资源====>优化资源的使用====>池化技术
+
+  线程池、连接池、内存池、对象池..... （创建和销毁十分浪费资源）
+
+  池化技术：事先准备好一些资源，有人需要使用，就来池子中拿，使用完毕后，归还
+
+- **线程池的好处**
+
+  - 降低资源的消耗
+  - 提高响应的速度
+  - 方便管理。
+  - 线程可以复用，可以控制最大并发数，管理线程
+
+> **线程池：三大方法，七大参数，四种拒绝策略**
+
+- 规范：
+
+![image-20201113160705150](多线程进阶JUC.assets/image-20201113160705150.png)
+
+- 三大方法
+
+  ![image-20201113162119193](多线程进阶JUC.assets/image-20201113162119193.png)
+
+  ```java
+  package pool;
+  
+  import java.util.concurrent.ExecutorService;
+  import java.util.concurrent.Executors;
+  
+  //使用线程池 拿出线程
+  //三大方法 1)创建线程池
+  //2)执行线程
+  //3）关闭线程池
+  public class TestExecutors {
+      public static void main(String[] args) {
+         // ExecutorService threadPool = Executors.newSingleThreadExecutor();//单个线程
+        ExecutorService threadPool = Executors.newFixedThreadPool(5);//创建一个固定大小的线程池
+       // ExecutorService threadPool = Executors.newCachedThreadPool();//该线程池可以根据需要创建线程， 也会复用以前创建的线程
+  
+          try{
+              for (int i = 0; i < 5; i++) {
+                  threadPool.execute(()->{
+                      System.out.println(Thread.currentThread().getName()+"执行");
+                  });
+              }
+  
+          }finally{
+              threadPool.shutdown();
+          }
+      }
+  }
+  
+  ```
+
+- 七大参数
+
+```java
+ public static ExecutorService newSingleThreadExecutor() {
+        return new FinalizableDelegatedExecutorService
+            (new ThreadPoolExecutor(1, 1, // 核心线程数1，最大线程数1
+                                    0L, TimeUnit.MILLISECONDS, //超时单位 毫秒
+                                    new LinkedBlockingQueue<Runnable>()));
+    }
+public static ExecutorService newCachedThreadPool() {
+        return new ThreadPoolExecutor(0, Integer.MAX_VALUE,//约为21亿
+                                      60L, TimeUnit.SECONDS,
+                                      new SynchronousQueue<Runnable>());
+    }
+public static ExecutorService newFixedThreadPool(int nThreads) {
+        return new ThreadPoolExecutor(nThreads, nThreads, // 核心线程数和最大线程数为传入的参数nThreads
+                                      0L, TimeUnit.MILLISECONDS,
+                                      new LinkedBlockingQueue<Runnable>());
+    }
+
+```
+
+可以看出来，三个创建线程池的方法，本质上都是调用 ThreadPoolExecutor()方法，只是传入的方法的参数有所不同而已
+
+- `ThreadPoolExecutor()`
+  - 核心线程池大小：===>一般情况下线程池内有多少个线程
+  - 线程池最大大小：===>线程池内最多有几个线程
+    - 最大线程大小如何定义？
+    - 1. **CPU 密集型===>几核cpu 就定义为几，可以保证cpu的效率最高**
+      2. **IO密集型==>判断程序中十分耗IO的线程有多少个，假设有15个大型任务，设置为30个（2倍）**
+      3. 这两个概念去了解一下
+  - `keepAliveTime` ===>超过一段时间没被使用的线程，将会被释放
+  - 阻塞队列：==>线程池中的所有线程都在执行 Runnable，此时进来的Runnable 将进入阻塞队列，等待线程空闲
+  - 拒绝策略：===>阻塞队列已满，还有Runnable 对象要进入线程池调用线程执行，线程池将拒绝这些Runnable
+
+```java
+public ThreadPoolExecutor(int corePoolSize, // 核心线程池大小
+                              int maximumPoolSize, //线程池最大大小
+                              long keepAliveTime, //保持存在的时间，如果超时还没有人调用，就会释放
+                              TimeUnit unit,//超时时间单位
+                              BlockingQueue<Runnable> workQueue,//阻塞队列
+                              ThreadFactory threadFactory,//线程工厂，用于创建线程，一般不用修改
+                              RejectedExecutionHandler handler // 拒绝策略) {
+        if (corePoolSize < 0 ||
+            maximumPoolSize <= 0 ||
+            maximumPoolSize < corePoolSize ||
+            keepAliveTime < 0)
+            throw new IllegalArgumentException();
+        if (workQueue == null || threadFactory == null || handler == null)
+            throw new NullPointerException();
+        this.corePoolSize = corePoolSize;
+        this.maximumPoolSize = maximumPoolSize;
+        this.workQueue = workQueue;
+        this.keepAliveTime = unit.toNanos(keepAliveTime);
+        this.threadFactory = threadFactory;
+        this.handler = handler;
+    }
+```
+
+![image-20201113163150250](多线程进阶JUC.assets/image-20201113163150250.png)
+
+- 手动创建线程池
+
+```java
+package pool;
+
+import java.util.concurrent.*;
+
+public class CreatPool {
+    public static void main(String[] args) {
+        ExecutorService threadPool = new ThreadPoolExecutor(2,
+                5,
+                3,
+                TimeUnit.SECONDS,
+                new LinkedBlockingDeque<Runnable>(3),
+                Executors.defaultThreadFactory(),
+                new ThreadPoolExecutor.AbortPolicy() //ThreadPool默认的拒绝策略，当阻塞队列已满，还有Runnable 对象要处理，不受理这个对象，并抛出异常
+                );
+    }
+}
+
+```
+
+- 四大拒绝策略：
+
+![image-20201113164613874](多线程进阶JUC.assets/image-20201113164613874.png)
+
+RejectedExecutionHandler接口的四个实现类:（四大拒绝策略）
+
+![image-20201113164659288](多线程进阶JUC.assets/image-20201113164659288.png)
+
+- `AbortPolicy`
+- `CallerRunsPolicy` :哪儿来的去哪儿，比如 main线程 要 使用一个线程来处理Runnable，但线程池满了，只能由main线程来处理这个Runnable
+- `DiscardOldestPolicy` ：队列满了，尝试和最早的竞争，不会抛出异常
+- `DiscardPolicy`：队列满了，丢掉Runnablb对象，不会抛出异常
+
+
+
+
+
+
+
+
 
 
 
